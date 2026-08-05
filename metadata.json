@@ -1,0 +1,6 @@
+{
+  "name": "StitchManager",
+  "description": "Sistema de gestão para ateliê de bordados, ordens de serviço, orçamentos, estoque e financeiro.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
