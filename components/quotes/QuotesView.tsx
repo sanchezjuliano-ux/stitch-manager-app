@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Quote, Client, InventoryItem, ProductType, QuoteMaterialItem, ExecutedService, DisplayViewMode } from '@/lib/types';
 import { ImageUploadOrLink } from '../common/ImageUploadOrLink';
 import { DataFilterExportToolbar } from '../common/DataFilterExportToolbar';
@@ -58,8 +58,13 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
   onDisapproveQuote,
   onSaveServiceToCatalog
 }) => {
+  const [isMounted, setIsMounted] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [filterDate, setFilterDate] = useState('');
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   const [filterClient, setFilterClient] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('todos');
   const [filterValueRange, setFilterValueRange] = useState<string>('todos');
@@ -1463,15 +1468,19 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 min-h-[160px] flex flex-col justify-center backdrop-blur-md">
               <p className="text-xs font-semibold text-cyan-300 mb-2 text-center">[Gráfico de Taxa de Aprovação]</p>
               <div className="h-28 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                    <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#cbd5e1' }} />
-                    <YAxis tick={{ fontSize: 10, fill: '#cbd5e1' }} />
-                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '12px' }} />
-                    <Bar dataKey="aprovados" name="Aprovados" fill="#22d3ee" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="pendentes" name="Pendentes" fill="rgba(255, 255, 255, 0.25)" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {isMounted ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                      <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#cbd5e1' }} />
+                      <YAxis tick={{ fontSize: 10, fill: '#cbd5e1' }} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', color: '#fff', borderRadius: '12px' }} />
+                      <Bar dataKey="aprovados" name="Aprovados" fill="#22d3ee" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="pendentes" name="Pendentes" fill="rgba(255, 255, 255, 0.25)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-xs text-slate-400">Carregando gráfico...</div>
+                )}
               </div>
             </div>
 
