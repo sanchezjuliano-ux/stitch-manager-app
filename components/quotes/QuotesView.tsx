@@ -404,33 +404,43 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
     setSelectedMaterials(prev => prev.filter((_, i) => i !== index));
   };
 
-  const filteredQuotes = quotes
+  const filteredQuotes = (Array.isArray(quotes) ? quotes : [])
     .filter(q => {
-      const matchesClient = !filterClient || filterClient === 'todos' || q.clientId === filterClient || q.clientName.toLowerCase().includes(filterClient.toLowerCase());
-      const matchesStatus = filterStatus === 'todos' || q.status === filterStatus;
-      const matchesDate = !filterDate || q.date.includes(filterDate);
-      
-      let matchesValue = true;
-      if (filterValueRange === 'ate_100') matchesValue = q.estimatedValue <= 100;
-      else if (filterValueRange === '100_500') matchesValue = q.estimatedValue > 100 && q.estimatedValue <= 500;
-      else if (filterValueRange === 'acima_500') matchesValue = q.estimatedValue > 500;
+      if (!q) return false;
+      const qClientName = q.clientName || '';
+      const qDesc = q.description || '';
+      const qId = q.id || '';
+      const qFabric = q.fabricType || '';
 
-      const matchesSearch = !searchQuery || 
-        q.description.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        q.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        q.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        q.fabricType.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesClient = !filterClient || filterClient === 'todos' || q.clientId === filterClient || qClientName.toLowerCase().includes(filterClient.toLowerCase());
+      const matchesStatus = filterStatus === 'todos' || q.status === filterStatus;
+      const matchesDate = !filterDate || (q.date && q.date.includes(filterDate));
+      
+      const qEstVal = Number(q.estimatedValue) || 0;
+      let matchesValue = true;
+      if (filterValueRange === 'ate_100') matchesValue = qEstVal <= 100;
+      else if (filterValueRange === '100_500') matchesValue = qEstVal > 100 && qEstVal <= 500;
+      else if (filterValueRange === 'acima_500') matchesValue = qEstVal > 500;
+
+      const sQuery = searchQuery ? searchQuery.toLowerCase() : '';
+      const matchesSearch = !sQuery || 
+        qDesc.toLowerCase().includes(sQuery) || 
+        qId.toLowerCase().includes(sQuery) ||
+        qClientName.toLowerCase().includes(sQuery) ||
+        qFabric.toLowerCase().includes(sQuery);
 
       return matchesClient && matchesStatus && matchesDate && matchesValue && matchesSearch;
     })
     .sort((a, b) => {
-      if (filterSortBy === 'maior_valor') return b.estimatedValue - a.estimatedValue;
-      if (filterSortBy === 'menor_valor') return a.estimatedValue - b.estimatedValue;
-      if (filterSortBy === 'antigos') return a.id.localeCompare(b.id, 'pt-BR');
-      return b.id.localeCompare(a.id, 'pt-BR');
+      const valA = Number(a.estimatedValue) || 0;
+      const valB = Number(b.estimatedValue) || 0;
+      if (filterSortBy === 'maior_valor') return valB - valA;
+      if (filterSortBy === 'menor_valor') return valA - valB;
+      if (filterSortBy === 'antigos') return (a.id || '').localeCompare(b.id || '', 'pt-BR');
+      return (b.id || '').localeCompare(a.id || '', 'pt-BR');
     });
 
-  const totalValueFiltered = filteredQuotes.reduce((acc, q) => acc + q.estimatedValue, 0);
+  const totalValueFiltered = filteredQuotes.reduce((acc, q) => acc + (Number(q.estimatedValue) || 0), 0);
 
   const quotesExportPayload: ExportDataPayload = {
     title: 'Relatório de Orçamentos',
@@ -443,15 +453,15 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
     ].filter(Boolean).join(' | ') || 'Nenhum filtro aplicado (Todos)',
     headers: ['Nº Orçamento', 'Cliente', 'Data', 'Valor (R$)', 'Status', 'Tamanho', 'Bastidor', 'Tecido', 'Descrição'],
     rows: filteredQuotes.map(q => [
-      q.id,
-      q.clientName,
-      q.date,
-      `R$ ${q.estimatedValue.toFixed(2)}`,
-      q.status,
-      q.embroiderySize,
-      q.hoopSize,
-      q.fabricType,
-      q.description
+      q.id || '-',
+      q.clientName || 'Avulso',
+      q.date || '-',
+      `R$ ${(Number(q.estimatedValue) || 0).toFixed(2)}`,
+      q.status || 'Pendente',
+      q.embroiderySize || '-',
+      q.hoopSize || '-',
+      q.fabricType || '-',
+      q.description || '-'
     ]),
     totals: [
       { label: 'Qtd Orçamentos', value: `${filteredQuotes.length}` },
@@ -494,21 +504,25 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const client = clients.find(c => c.id === selectedClientId);
+    const safeClients = Array.isArray(clients) ? clients : [];
+    const client = safeClients.find(c => c.id === selectedClientId);
     const clientName = client ? client.name : 'Cliente Avulso';
 
-    const qty = Number(itemQuantity) || 1;
-    const finalValue = productType === 'fisico' && (estimatedValue === 0 || estimatedValue === '')
-      ? calculatedPhysicalTotal * qty
-      : (Number(estimatedValue) || (calculatedPhysicalTotal * qty) || 100);
+    const qty = Math.max(1, Number(itemQuantity) || 1);
+    const safeCalcPhys = Number(calculatedPhysicalTotal) || 0;
+    const rawEstVal = Number(estimatedValue);
+    const finalValue = (isNaN(rawEstVal) || rawEstVal <= 0)
+      ? (safeCalcPhys > 0 ? safeCalcPhys * qty : 100)
+      : rawEstVal;
 
-    const uPrice = Number(unitPrice) || (finalValue / qty);
+    const rawUPrice = Number(unitPrice);
+    const uPrice = (isNaN(rawUPrice) || rawUPrice <= 0) ? (finalValue / qty) : rawUPrice;
 
     onAddQuote({
       clientId: selectedClientId || 'cli-guest',
       clientName,
       date: new Date().toLocaleDateString('pt-BR'),
-      productType,
+      productType: productType || 'virtual',
       itemQuantity: qty,
       unitPrice: Number(uPrice.toFixed(2)),
       embroiderySize: embroiderySize || '10x10cm',
@@ -521,11 +535,11 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
       matrixUrl,
       matrixFileName: matrixUrl ? 'matriz_referencia.dst' : undefined,
       stitchCount: aiAnalysis?.stitchCount || 12000,
-      quoteMaterials: productType === 'fisico' ? selectedMaterials : undefined,
+      quoteMaterials: productType === 'fisico' ? (Array.isArray(selectedMaterials) ? selectedMaterials : []) : undefined,
       machineTimeMinutes: productType === 'fisico' ? (Number(machineTimeMinutes) || 0) : undefined,
       machineHourlyRate: productType === 'fisico' ? (Number(machineHourlyRate) || 0) : undefined,
-      machineCost: productType === 'fisico' ? machineCost : undefined,
-      laborCost: productType === 'fisico' ? laborValue : undefined,
+      machineCost: productType === 'fisico' ? (Number(machineCost) || 0) : undefined,
+      laborCost: productType === 'fisico' ? (Number(laborValue) || 0) : undefined,
     });
 
     // Reset Form

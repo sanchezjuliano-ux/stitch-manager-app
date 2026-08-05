@@ -23,6 +23,7 @@ import {
 import { Header } from '@/components/Header';
 import { BottomNav } from '@/components/BottomNav';
 import { NavigationDrawer } from '@/components/NavigationDrawer';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
 import { QuotesView } from '@/components/quotes/QuotesView';
 import { OrdersView } from '@/components/orders/OrdersView';
@@ -68,16 +69,28 @@ export default function Home() {
     const timer = setTimeout(() => {
       try {
         const savedQuotes = localStorage.getItem('sm_quotes');
-        if (savedQuotes) setQuotes(JSON.parse(savedQuotes));
+        if (savedQuotes) {
+          const parsed = JSON.parse(savedQuotes);
+          if (Array.isArray(parsed)) setQuotes(parsed);
+        }
 
         const savedInventory = localStorage.getItem('sm_inventory');
-        if (savedInventory) setInventory(JSON.parse(savedInventory));
+        if (savedInventory) {
+          const parsed = JSON.parse(savedInventory);
+          if (Array.isArray(parsed)) setInventory(parsed);
+        }
 
         const savedTransactions = localStorage.getItem('sm_transactions');
-        if (savedTransactions) setTransactions(JSON.parse(savedTransactions));
+        if (savedTransactions) {
+          const parsed = JSON.parse(savedTransactions);
+          if (Array.isArray(parsed)) setTransactions(parsed);
+        }
 
         const savedServices = localStorage.getItem('sm_services');
-        if (savedServices) setServices(JSON.parse(savedServices));
+        if (savedServices) {
+          const parsed = JSON.parse(savedServices);
+          if (Array.isArray(parsed)) setServices(parsed);
+        }
       } catch (e) {
         console.error('Error loading localStorage:', e);
       } finally {
@@ -161,28 +174,37 @@ export default function Home() {
 
   // Quote Handlers
   const handleAddQuote = (newQuote: Omit<Quote, 'id'>) => {
-    const nextNum = quotes.length + 106;
+    const currentQuotes = Array.isArray(quotes) ? quotes : [];
+    const nextNum = currentQuotes.length + 106;
     const created: Quote = {
       ...newQuote,
-      id: `#${nextNum}`
+      id: `#${nextNum}`,
+      clientName: newQuote.clientName || 'Cliente Avulso',
+      fabricType: newQuote.fabricType || 'Algodão',
+      fabricColor: newQuote.fabricColor || 'Branco',
+      description: newQuote.description || 'Bordado personalizado',
+      estimatedValue: Number(newQuote.estimatedValue) || 0,
+      unitPrice: Number(newQuote.unitPrice) || 0
     };
-    setQuotes([created, ...quotes]);
+    setQuotes([created, ...currentQuotes]);
 
     // Automatically deduct materials from inventory stock when a physical product quote with materials is added
-    if (created.quoteMaterials && created.quoteMaterials.length > 0) {
-      setInventory(prevInv => prevInv.map(item => {
+    if (created.quoteMaterials && Array.isArray(created.quoteMaterials) && created.quoteMaterials.length > 0) {
+      setInventory(prevInv => (Array.isArray(prevInv) ? prevInv : []).map(item => {
         const matchingMaterials = created.quoteMaterials?.filter(
-          m => m.inventoryItemId === item.id || m.name.toLowerCase() === item.name.toLowerCase()
+          m => (m.inventoryItemId && m.inventoryItemId === item.id) || 
+               (m.name && item.name && m.name.toLowerCase() === item.name.toLowerCase())
         );
         if (matchingMaterials && matchingMaterials.length > 0) {
           const totalDeductedUnits = matchingMaterials.reduce((acc, m) => {
             const fSize = m.fractionSize || item.fractionSize;
             if (m.isFractioned && fSize && fSize > 0) {
-              return acc + (m.quantity / fSize);
+              return acc + ((Number(m.quantity) || 0) / fSize);
             }
-            return acc + m.quantity;
+            return acc + (Number(m.quantity) || 0);
           }, 0);
-          const newQty = Math.max(0, item.stockQuantity - totalDeductedUnits);
+          const currentQty = Number(item.stockQuantity) || 0;
+          const newQty = Math.max(0, currentQty - totalDeductedUnits);
           const roundedQty = Number(newQty.toFixed(2));
           let newTag = item.tag;
           if (roundedQty <= 3) newTag = 'Estoque Baixo';
@@ -683,83 +705,85 @@ export default function Home() {
 
         {/* View Body */}
         <main className="flex-1 p-4 sm:p-5 overflow-y-auto">
-          {currentTab === 'quotes' && (
-            <QuotesView
-              quotes={quotes}
-              clients={clients}
-              inventory={inventory}
-              executedServices={services}
-              onAddQuote={handleAddQuote}
-              onUpdateQuote={handleUpdateQuote}
-              onUpdateQuoteStatus={handleUpdateQuoteStatus}
-              onDeleteQuote={handleDeleteQuote}
-              onConvertToOrder={handleConvertQuoteToOrder}
-              onDisapproveQuote={handleDisapproveQuote}
-              onSaveServiceToCatalog={handleAddService}
-            />
-          )}
+          <ErrorBoundary fallbackTitle="Ocorreu um erro no módulo atual">
+            {currentTab === 'quotes' && (
+              <QuotesView
+                quotes={quotes}
+                clients={clients}
+                inventory={inventory}
+                executedServices={services}
+                onAddQuote={handleAddQuote}
+                onUpdateQuote={handleUpdateQuote}
+                onUpdateQuoteStatus={handleUpdateQuoteStatus}
+                onDeleteQuote={handleDeleteQuote}
+                onConvertToOrder={handleConvertQuoteToOrder}
+                onDisapproveQuote={handleDisapproveQuote}
+                onSaveServiceToCatalog={handleAddService}
+              />
+            )}
 
-          {currentTab === 'services' && (
-            <ServicesView
-              services={services}
-              onAddService={handleAddService}
-              onUpdateService={handleUpdateService}
-              onDeleteService={handleDeleteService}
-            />
-          )}
+            {currentTab === 'services' && (
+              <ServicesView
+                services={services}
+                onAddService={handleAddService}
+                onUpdateService={handleUpdateService}
+                onDeleteService={handleDeleteService}
+              />
+            )}
 
-          {currentTab === 'orders' && (
-            <OrdersView
-              orders={orders}
-              clients={clients}
-              quotes={quotes}
-              onAddOrder={handleAddOrder}
-              onToggleStep={handleToggleStep}
-              onUpdateStatus={handleUpdateOrderStatus}
-              onToggleSinglePayment={handleToggleSinglePayment}
-              onConfirmPayment={handleConfirmPayment}
-              onUndoPayment={handleUndoPayment}
-              onConfirmShipping={handleConfirmShipping}
-              onUndoShipping={handleUndoShipping}
-              onUpdateOrderDetails={handleUpdateOrderDetails}
-              onDeleteOrder={handleDeleteOrder}
-            />
-          )}
+            {currentTab === 'orders' && (
+              <OrdersView
+                orders={orders}
+                clients={clients}
+                quotes={quotes}
+                onAddOrder={handleAddOrder}
+                onToggleStep={handleToggleStep}
+                onUpdateStatus={handleUpdateOrderStatus}
+                onToggleSinglePayment={handleToggleSinglePayment}
+                onConfirmPayment={handleConfirmPayment}
+                onUndoPayment={handleUndoPayment}
+                onConfirmShipping={handleConfirmShipping}
+                onUndoShipping={handleUndoShipping}
+                onUpdateOrderDetails={handleUpdateOrderDetails}
+                onDeleteOrder={handleDeleteOrder}
+              />
+            )}
 
-          {currentTab === 'clients' && (
-            <ClientsView
-              clients={clients}
-              onAddClient={handleAddClient}
-              onUpdateClient={handleUpdateClient}
-              onDeleteClient={handleDeleteClient}
-            />
-          )}
+            {currentTab === 'clients' && (
+              <ClientsView
+                clients={clients}
+                onAddClient={handleAddClient}
+                onUpdateClient={handleUpdateClient}
+                onDeleteClient={handleDeleteClient}
+              />
+            )}
 
-          {currentTab === 'inventory' && (
-            <InventoryView
-              items={inventory}
-              onAddItem={handleAddInventoryItem}
-              onUpdateStock={handleUpdateStock}
-              onUpdateItem={handleUpdateInventoryItem}
-              onDeleteItem={handleDeleteInventoryItem}
-            />
-          )}
+            {currentTab === 'inventory' && (
+              <InventoryView
+                items={inventory}
+                onAddItem={handleAddInventoryItem}
+                onUpdateStock={handleUpdateStock}
+                onUpdateItem={handleUpdateInventoryItem}
+                onDeleteItem={handleDeleteInventoryItem}
+              />
+            )}
 
-          {currentTab === 'finance' && (
-            <FinanceView
-              transactions={transactions}
-              onAddTransaction={handleAddTransaction}
-              onUpdateTransaction={handleUpdateTransaction}
-              onDeleteTransaction={handleDeleteTransaction}
-            />
-          )}
+            {currentTab === 'finance' && (
+              <FinanceView
+                transactions={transactions}
+                onAddTransaction={handleAddTransaction}
+                onUpdateTransaction={handleUpdateTransaction}
+                onDeleteTransaction={handleDeleteTransaction}
+              />
+            )}
 
-          {currentTab === 'analytics' && (
-            <AnalyticsView
-              quotes={quotes}
-              transactions={transactions}
-            />
-          )}
+            {currentTab === 'analytics' && (
+              <AnalyticsView
+                quotes={quotes}
+                transactions={transactions}
+              />
+            )}
+          </ErrorBoundary>
         </main>
 
         {/* Bottom Navigation */}
