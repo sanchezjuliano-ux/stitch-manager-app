@@ -251,14 +251,16 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
   };
 
   const handleExportQuote = (q: Quote) => {
+    if (!q) return;
     const isVirtual = q.productType === 'virtual' || (!q.productType && !q.machineTimeMinutes && (!q.quoteMaterials || q.quoteMaterials.length === 0));
 
+    const safeEstVal = Number(q.estimatedValue) || 0;
     const rows: (string | number)[][] = [
-      ['Número do Orçamento', q.id],
-      ['Data de Emissão', q.date],
-      ['Cliente', q.clientName],
+      ['Número do Orçamento', q.id || '-'],
+      ['Data de Emissão', q.date || '-'],
+      ['Cliente', q.clientName || 'Avulso'],
       ['Tipo de Produto', isVirtual ? 'Produto Virtual (Matriz)' : 'Produto Físico (Bordado/Confecção)'],
-      ['Status', q.status],
+      ['Status', q.status || 'Pendente'],
       ['Descrição do Serviço', q.description || '-']
     ];
 
@@ -278,7 +280,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
       rows.push(['Cor do Tecido', q.fabricColor]);
     }
     if (q.stitchCount && q.stitchCount > 0) {
-      rows.push(['Número de Pontos', `${q.stitchCount.toLocaleString('pt-BR')} pontos`]);
+      rows.push(['Número de Pontos', `${(Number(q.stitchCount) || 0).toLocaleString('pt-BR')} pontos`]);
     }
 
     if (!isVirtual) {
@@ -286,14 +288,14 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
         rows.push(['Tempo Estimado de Máquina', `${q.machineTimeMinutes} minutos`]);
       }
       if (q.machineCost && q.machineCost > 0) {
-        rows.push(['Custo Est. de Máquina', `R$ ${q.machineCost.toFixed(2)}`]);
+        rows.push(['Custo Est. de Máquina', `R$ ${(Number(q.machineCost) || 0).toFixed(2)}`]);
       }
       if (q.laborCost && q.laborCost > 0) {
-        rows.push(['Custo Mão de Obra', `R$ ${q.laborCost.toFixed(2)}`]);
+        rows.push(['Custo Mão de Obra', `R$ ${(Number(q.laborCost) || 0).toFixed(2)}`]);
       }
       if (q.quoteMaterials && q.quoteMaterials.length > 0) {
         const matFormatted = q.quoteMaterials
-          .map(m => `• ${m.name}: ${m.quantity} ${m.unit} x R$ ${m.pricePerUnit.toFixed(2)} = R$ ${m.totalCost.toFixed(2)}`)
+          .map(m => `• ${m.name || 'Insumo'}: ${m.quantity || 1} ${m.unit || 'un'} x R$ ${(Number(m.pricePerUnit) || 0).toFixed(2)} = R$ ${(Number(m.totalCost) || 0).toFixed(2)}`)
           .join('\n');
         rows.push(['Insumos e Materiais Utilizados', matFormatted]);
       }
@@ -301,19 +303,19 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
 
     rows.push([
       'VALOR TOTAL ESTIMADO',
-      `R$ ${q.estimatedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      `R$ ${safeEstVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     ]);
 
     const payload: ExportDataPayload = {
-      title: `Orçamento #${q.id}`,
-      subtitle: `Cliente: ${q.clientName} • Data: ${q.date}`,
+      title: `Orçamento #${q.id || ''}`,
+      subtitle: `Cliente: ${q.clientName || 'Avulso'} • Data: ${q.date || '-'}`,
       headers: ['Especificação / Detalhe', 'Informação / Valor'],
       rows,
       imageUrl: q.matrixUrl || undefined,
       totals: [
         {
           label: 'Valor Total Estimado',
-          value: `R$ ${q.estimatedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          value: `R$ ${safeEstVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         }
       ],
       rawItems: [q]
@@ -322,9 +324,11 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
     setSelectedQuoteForExport(payload);
   };
 
-  const itemUnits = Array.from(new Set(inventory.map((i) => i.unit).filter(Boolean)));
+  const safeInventory = Array.isArray(inventory) ? inventory : [];
+  const itemUnits = Array.from(new Set(safeInventory.map((i) => i ? i.unit : '').filter(Boolean)));
+  const safeCustomUnits = Array.isArray(customUnits) ? customUnits : [];
   const allUnits = Array.from(
-    new Set([...DEFAULT_UNITS, ...customUnits, ...itemUnits])
+    new Set([...DEFAULT_UNITS, ...safeCustomUnits, ...itemUnits])
   );
 
   const handleSaveNewUnit = () => {
@@ -1495,17 +1499,21 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {quotes.slice(0, 3).map((q) => (
-                    <tr key={q.id}>
-                      <td className="py-2 px-1 font-semibold text-white">{q.id}</td>
-                      <td className="py-2 px-1 font-medium text-slate-200">R$ {q.estimatedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                      <td className="py-2 px-1">
-                        <span className={`font-bold ${q.status === 'Aprovado' ? 'text-cyan-300' : 'text-slate-400'}`}>
-                          {q.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {(Array.isArray(quotes) ? quotes : []).slice(0, 3).map((q, idx) => {
+                    if (!q) return null;
+                    const safeEstVal = Number(q.estimatedValue) || 0;
+                    return (
+                      <tr key={q.id || idx}>
+                        <td className="py-2 px-1 font-semibold text-white">{q.id || '-'}</td>
+                        <td className="py-2 px-1 font-medium text-slate-200">R$ {safeEstVal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        <td className="py-2 px-1">
+                          <span className={`font-bold ${q.status === 'Aprovado' ? 'text-cyan-300' : 'text-slate-400'}`}>
+                            {q.status || 'Pendente'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1524,24 +1532,30 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
                 ? 'space-y-2'
                 : 'space-y-3'
             }>
-              {filteredQuotes.map((q) => {
+              {filteredQuotes.map((q, idx) => {
+                if (!q) return null;
+                const safeQVal = Number(q.estimatedValue) || 0;
+                const safeQQty = Number(q.itemQuantity) || 1;
+                const rawUnitP = Number(q.unitPrice);
+                const safeQUnitP = (!isNaN(rawUnitP) && rawUnitP > 0) ? rawUnitP : (safeQQty > 0 ? safeQVal / safeQQty : 0);
+
                 if (viewMode === 'small') {
                   return (
-                    <div key={q.id} className="p-2.5 rounded-2xl border border-white/10 bg-white/5 space-y-2 backdrop-blur-md flex flex-col justify-between">
+                    <div key={q.id || idx} className="p-2.5 rounded-2xl border border-white/10 bg-white/5 space-y-2 backdrop-blur-md flex flex-col justify-between">
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-xs text-white">{q.id}</span>
+                          <span className="font-bold text-xs text-white">{q.id || '-'}</span>
                           <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold ${
                             q.status === 'Aprovado' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700 text-slate-300'
                           }`}>
-                            {q.status}
+                            {q.status || 'Pendente'}
                           </span>
                         </div>
-                        <p className="text-[11px] font-semibold text-cyan-300 truncate">{q.clientName}</p>
-                        <p className="text-[10px] text-slate-300 line-clamp-2">{q.description}</p>
+                        <p className="text-[11px] font-semibold text-cyan-300 truncate">{q.clientName || 'Avulso'}</p>
+                        <p className="text-[10px] text-slate-300 line-clamp-2">{q.description || '-'}</p>
                       </div>
                       <div className="border-t border-white/10 pt-1.5 flex items-center justify-between text-[11px]">
-                        <span className="font-black text-cyan-300">R$ {q.estimatedValue.toFixed(0)}</span>
+                        <span className="font-black text-cyan-300">R$ {safeQVal.toFixed(0)}</span>
                         <div className="flex items-center gap-1">
                           <button onClick={() => handleOpenEditModal(q)} className="p-1 rounded bg-white/5 text-slate-300 hover:text-white">
                             <Edit className="w-3 h-3" />
@@ -1554,26 +1568,26 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
 
                 if (viewMode === 'list') {
                   return (
-                    <div key={q.id} className="p-3 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div key={q.id || idx} className="p-3 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        <span className="font-black text-xs text-white px-2 py-1 rounded bg-white/10">{q.id}</span>
+                        <span className="font-black text-xs text-white px-2 py-1 rounded bg-white/10">{q.id || '-'}</span>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-xs text-cyan-200 truncate">{q.clientName}</span>
-                            <span className="text-[10px] text-slate-400">({q.date})</span>
+                            <span className="font-bold text-xs text-cyan-200 truncate">{q.clientName || 'Avulso'}</span>
+                            <span className="text-[10px] text-slate-400">({q.date || '-'})</span>
                           </div>
-                          <p className="text-xs text-slate-300 truncate">{q.description}</p>
+                          <p className="text-xs text-slate-300 truncate">{q.description || '-'}</p>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-3 justify-between sm:justify-end shrink-0">
                         <span className="text-xs font-black text-cyan-300">
-                          R$ {q.estimatedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          R$ {safeQVal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </span>
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                           q.status === 'Aprovado' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700 text-slate-300'
                         }`}>
-                          {q.status}
+                          {q.status || 'Pendente'}
                         </span>
                         <div className="flex items-center gap-1">
                           <button onClick={() => handleOpenEditModal(q)} className="p-1.5 rounded-lg bg-white/5 text-slate-200 hover:text-white">
@@ -1589,13 +1603,13 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
                 }
 
                 return (
-                  <div key={q.id} className="p-3.5 rounded-2xl border border-white/10 bg-white/5 space-y-3 backdrop-blur-md flex flex-col justify-between">
+                  <div key={q.id || idx} className="p-3.5 rounded-2xl border border-white/10 bg-white/5 space-y-3 backdrop-blur-md flex flex-col justify-between">
                     <div className="space-y-3">
                       <div className="flex items-start justify-between">
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-sm text-white">Orçamento {q.id}</span>
-                            <span className="text-[11px] text-slate-400">({q.date})</span>
+                            <span className="font-bold text-sm text-white">Orçamento {q.id || '-'}</span>
+                            <span className="text-[11px] text-slate-400">({q.date || '-'})</span>
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1 ${
                               q.productType === 'fisico'
                                 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30'
@@ -1605,16 +1619,16 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
                               {q.productType === 'fisico' ? 'Produto Físico' : 'Produto Virtual'}
                             </span>
                           </div>
-                          <p className="text-xs text-cyan-200 font-medium mt-0.5">{q.clientName}</p>
-                          <p className="text-xs text-slate-300 line-clamp-2 mt-1">{q.description}</p>
+                          <p className="text-xs text-cyan-200 font-medium mt-0.5">{q.clientName || 'Avulso'}</p>
+                          <p className="text-xs text-slate-300 line-clamp-2 mt-1">{q.description || '-'}</p>
                         </div>
                         <div className="flex flex-col items-end">
                           <span className="text-sm font-extrabold text-cyan-300 whitespace-nowrap">
-                            R$ {q.estimatedValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            R$ {safeQVal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </span>
-                          {q.itemQuantity && q.itemQuantity > 1 ? (
+                          {safeQQty > 1 ? (
                             <span className="text-[10px] font-semibold text-cyan-200/80">
-                              {q.itemQuantity}x R$ {(q.unitPrice || q.estimatedValue / q.itemQuantity).toFixed(2)}/un
+                              {safeQQty}x R$ {safeQUnitP.toFixed(2)}/un
                             </span>
                           ) : null}
                         </div>
@@ -1632,11 +1646,11 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
                               </span>
                             )}
                           </div>
-                          {q.quoteMaterials && q.quoteMaterials.length > 0 && (
+                          {q.quoteMaterials && Array.isArray(q.quoteMaterials) && q.quoteMaterials.length > 0 && (
                             <div className="text-[11px] text-slate-300 space-y-0.5 pt-0.5">
                               <span className="font-semibold text-white">Insumos ({q.quoteMaterials.length}): </span>
                               <span className="text-slate-300">
-                                {q.quoteMaterials.map(m => `${m.quantity}${m.unit} ${m.name}`).join(', ')}
+                                {q.quoteMaterials.map(m => m ? `${m.quantity || 1}${m.unit || 'un'} ${m.name || 'insumo'}` : '').filter(Boolean).join(', ')}
                               </span>
                             </div>
                           )}
