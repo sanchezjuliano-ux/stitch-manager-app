@@ -597,17 +597,13 @@ export default function Home() {
   };
 
   const handleAddTransaction = (newTx: Omit<Transaction, 'id' | 'balanceAfter'>) => {
-    const lastBalance = transactions[0]?.balanceAfter || 250;
-    const amount = newTx.type === 'entrada' ? newTx.amount : -newTx.amount;
-    const newBalance = lastBalance + amount;
-
     const created: Transaction = {
       ...newTx,
       id: `tx-${Date.now()}`,
-      balanceAfter: newBalance
+      balanceAfter: 0
     };
 
-    setTransactions([created, ...transactions]);
+    setTransactions(prev => recalculateBalances([created, ...prev]));
   };
 
   const handleUpdateTransaction = (updatedTx: Transaction) => {
