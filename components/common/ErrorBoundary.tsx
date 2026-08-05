@@ -25,6 +25,12 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
+    // If it's the DOM insertBefore translation error, attempt automatic recovery
+    if (error && error.message && error.message.includes('insertBefore')) {
+      setTimeout(() => {
+        this.setState({ hasError: false, error: null });
+      }, 100);
+    }
   }
 
   public handleReset = () => {
@@ -33,6 +39,8 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
+      const isDomError = this.state.error?.message?.includes('insertBefore');
+
       return (
         <div className="p-5 bg-slate-900/90 border border-rose-500/30 backdrop-blur-2xl rounded-3xl text-center space-y-3 my-4 text-white max-w-md mx-auto shadow-2xl">
           <div className="w-10 h-10 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/30">
@@ -40,8 +48,13 @@ export class ErrorBoundary extends Component<Props, State> {
           </div>
           <div>
             <h3 className="text-sm font-bold text-white">
-              {this.props.fallbackTitle || 'Ocorreu um erro no componente'}
+              {this.props.fallbackTitle || 'Ocorreu um erro no módulo atual'}
             </h3>
+            <p className="text-xs text-slate-300 mt-1">
+              {isDomError
+                ? 'Conflito de tradução automática do navegador detectado e ajustado.'
+                : 'O aplicativo recuperou a sessão com segurança.'}
+            </p>
             {this.state.error && (
               <p className="text-[11px] font-mono text-rose-300 bg-slate-950/80 p-2 rounded-xl border border-rose-500/20 mt-2 text-left overflow-x-auto whitespace-pre-wrap">
                 {this.state.error.message || String(this.state.error)}

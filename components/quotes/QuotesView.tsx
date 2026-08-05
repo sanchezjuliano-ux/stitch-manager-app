@@ -1499,8 +1499,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {(Array.isArray(quotes) ? quotes : []).slice(0, 3).map((q, idx) => {
-                    if (!q) return null;
+                  {(Array.isArray(quotes) ? quotes : []).filter((q): q is Quote => Boolean(q && q.id)).slice(0, 3).map((q, idx) => {
                     const safeEstVal = Number(q.estimatedValue) || 0;
                     return (
                       <tr key={q.id || idx}>
@@ -1532,8 +1531,7 @@ export const QuotesView: React.FC<QuotesViewProps> = ({
                 ? 'space-y-2'
                 : 'space-y-3'
             }>
-              {filteredQuotes.map((q, idx) => {
-                if (!q) return null;
+              {filteredQuotes.filter((q): q is Quote => Boolean(q && q.id)).map((q, idx) => {
                 const safeQVal = Number(q.estimatedValue) || 0;
                 const safeQQty = Number(q.itemQuantity) || 1;
                 const rawUnitP = Number(q.unitPrice);
