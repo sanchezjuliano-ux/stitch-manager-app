@@ -14,18 +14,28 @@ import {
   Download, 
   Filter,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Pencil,
+  Trash2
 } from 'lucide-react';
 
 interface FinanceViewProps {
   transactions: Transaction[];
   onAddTransaction: (newTx: Omit<Transaction, 'id' | 'balanceAfter'>) => void;
+  onUpdateTransaction?: (updatedTx: Transaction) => void;
+  onDeleteTransaction?: (id: string) => void;
 }
 
-export const FinanceView: React.FC<FinanceViewProps> = ({ transactions, onAddTransaction }) => {
+export const FinanceView: React.FC<FinanceViewProps> = ({ 
+  transactions, 
+  onAddTransaction,
+  onUpdateTransaction,
+  onDeleteTransaction
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<DisplayViewMode>('medium');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [typeFilter, setTypeFilter] = useState<'todos' | 'entrada' | 'saida'>('todos');
   const [categoryFilter, setCategoryFilter] = useState<string>('todos');
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('todos');
@@ -34,7 +44,7 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ transactions, onAddTra
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // Form State
+  // Form State for Add
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState<number>(150);
   const [type, setType] = useState<'entrada' | 'saida'>('entrada');
@@ -122,6 +132,24 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ transactions, onAddTra
     setAmount(150);
     setIsUrgent(false);
     setShowAddModal(false);
+  };
+
+  const handleSaveEditedTransaction = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTx || !editingTx.description || !editingTx.amount) return;
+
+    if (onUpdateTransaction) {
+      onUpdateTransaction(editingTx);
+    }
+    setEditingTx(null);
+  };
+
+  const handleDelete = (tx: Transaction) => {
+    if (window.confirm(`Tem certeza que deseja excluir a movimentação "${tx.description}"?`)) {
+      if (onDeleteTransaction) {
+        onDeleteTransaction(tx.id);
+      }
+    }
   };
 
   return (
@@ -280,15 +308,17 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ transactions, onAddTra
         {viewMode === 'small' ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
             {filteredTransactions.map((tx) => (
-              <div key={tx.id} className="p-2.5 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md flex flex-col justify-between space-y-1 hover:border-cyan-400/50 transition">
+              <div key={tx.id} className="p-2.5 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md flex flex-col justify-between space-y-1 hover:border-cyan-400/50 transition relative group">
                 <div>
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] text-slate-300">{tx.date}</span>
-                    {tx.type === 'entrada' ? (
-                      <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />
-                    ) : (
-                      <ArrowDownRight className="w-3.5 h-3.5 text-rose-400" />
-                    )}
+                    <div className="flex items-center gap-1">
+                      {tx.type === 'entrada' ? (
+                        <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <ArrowDownRight className="w-3.5 h-3.5 text-rose-400" />
+                      )}
+                    </div>
                   </div>
                   <p className="text-xs font-bold text-white truncate mt-1">{tx.description}</p>
                 </div>
@@ -296,6 +326,22 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ transactions, onAddTra
                   <span className={tx.type === 'entrada' ? 'text-emerald-400 font-extrabold' : 'text-rose-400 font-extrabold'}>
                     R$ {tx.amount.toFixed(2)}
                   </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setEditingTx(tx)}
+                      title="Editar Movimentação"
+                      className="p-1 rounded hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 transition"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(tx)}
+                      title="Excluir Movimentação"
+                      className="p-1 rounded hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 transition"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -309,15 +355,35 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ transactions, onAddTra
                     <span className="text-xs text-slate-300">{tx.date} • {tx.category || 'Geral'}</span>
                     <h4 className="font-bold text-sm text-white mt-0.5">{tx.description}</h4>
                   </div>
-                  <div className={`p-2 rounded-xl border ${tx.type === 'entrada' ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-300' : 'bg-rose-500/20 border-rose-400/30 text-rose-300'}`}>
-                    {tx.type === 'entrada' ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
+                  <div className="flex items-center gap-2">
+                    <div className={`p-2 rounded-xl border ${tx.type === 'entrada' ? 'bg-emerald-500/20 border-emerald-400/30 text-emerald-300' : 'bg-rose-500/20 border-rose-400/30 text-rose-300'}`}>
+                      {tx.type === 'entrada' ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center justify-between border-t border-white/10 pt-2 text-xs">
-                  <span className="text-slate-300">Valor:</span>
-                  <span className={`text-sm font-extrabold ${tx.type === 'entrada' ? 'text-emerald-300' : 'text-rose-300'}`}>
-                    {tx.type === 'entrada' ? '+' : '-'} R$ {tx.amount.toFixed(2)}
-                  </span>
+                  <div>
+                    <span className="text-slate-300">Valor: </span>
+                    <span className={`text-sm font-extrabold ${tx.type === 'entrada' ? 'text-emerald-300' : 'text-rose-300'}`}>
+                      {tx.type === 'entrada' ? '+' : '-'} R$ {tx.amount.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setEditingTx(tx)}
+                      title="Editar Movimentação"
+                      className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border border-white/10 hover:border-cyan-400/40 transition flex items-center gap-1 text-xs font-semibold"
+                    >
+                      <Pencil className="w-3.5 h-3.5" /> Editar
+                    </button>
+                    <button
+                      onClick={() => handleDelete(tx)}
+                      title="Excluir Movimentação"
+                      className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 border border-white/10 hover:border-rose-400/40 transition flex items-center gap-1 text-xs font-semibold"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Excluir
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -331,7 +397,8 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ transactions, onAddTra
                   <th className="py-2 px-2">Descrição</th>
                   <th className="py-2 px-2 text-right">Entrada</th>
                   <th className="py-2 px-2 text-right">Saída</th>
-                  <th className="py-2 pl-2 text-right">Saldo</th>
+                  <th className="py-2 px-2 text-right">Saldo</th>
+                  <th className="py-2 pl-2 text-center">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/10">
@@ -354,8 +421,26 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ transactions, onAddTra
                     <td className="py-3 px-2 text-right text-rose-300 font-medium whitespace-nowrap">
                       {tx.type === 'saida' ? `R$ ${tx.amount.toFixed(2)}` : '-'}
                     </td>
-                    <td className="py-3 pl-2 text-right font-black text-cyan-300 whitespace-nowrap">
+                    <td className="py-3 px-2 text-right font-black text-cyan-300 whitespace-nowrap">
                       R$ {tx.balanceAfter.toFixed(2)}
+                    </td>
+                    <td className="py-3 pl-2 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={() => setEditingTx(tx)}
+                          title="Editar Movimentação"
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-cyan-500/20 text-slate-300 hover:text-cyan-300 border border-white/10 hover:border-cyan-400/40 transition"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(tx)}
+                          title="Excluir Movimentação"
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 border border-white/10 hover:border-rose-400/40 transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -364,7 +449,6 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ transactions, onAddTra
           </div>
         )}
       </div>
-
 
       {/* Add Transaction Modal */}
       {showAddModal && (
@@ -418,6 +502,22 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ transactions, onAddTra
               </div>
 
               <div>
+                <label className="block font-bold text-slate-300 mb-1">Categoria</label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full text-xs px-3 py-2.5 rounded-xl border border-white/20 bg-slate-900 text-white backdrop-blur-md focus:outline-none focus:border-cyan-400"
+                >
+                  <option value="Pagamento OS">Pagamento OS</option>
+                  <option value="Sinal OS">Sinal OS</option>
+                  <option value="Compra de Linhas">Compra de Linhas</option>
+                  <option value="Manutenção">Manutenção</option>
+                  <option value="Insumos">Insumos</option>
+                  <option value="Outros">Outros</option>
+                </select>
+              </div>
+
+              <div>
                 <label className="block font-bold text-slate-300 mb-1">Valor (R$)</label>
                 <input
                   type="number"
@@ -452,6 +552,125 @@ export const FinanceView: React.FC<FinanceViewProps> = ({ transactions, onAddTra
                   className="flex-1 py-2.5 bg-gradient-to-r from-cyan-400 to-blue-600 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg shadow-cyan-500/25 border border-cyan-300/40 hover:brightness-110 active:scale-95 transition"
                 >
                   Salvar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Transaction Modal */}
+      {editingTx && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900/90 border border-white/15 backdrop-blur-2xl rounded-3xl max-w-md w-full p-5 space-y-4 shadow-2xl text-white">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 className="text-lg font-bold text-white">Editar Movimentação</h3>
+              <button
+                onClick={() => setEditingTx(null)}
+                className="p-1 text-slate-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditedTransaction} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">Tipo de Movimentação</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingTx({ ...editingTx, type: 'entrada' })}
+                    className={`py-2.5 rounded-xl font-extrabold transition backdrop-blur-md ${
+                      editingTx.type === 'entrada' ? 'bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 shadow-md' : 'bg-white/10 text-slate-300 border border-white/15'
+                    }`}
+                  >
+                    ↑ Entrada (Receita)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingTx({ ...editingTx, type: 'saida' })}
+                    className={`py-2.5 rounded-xl font-extrabold transition backdrop-blur-md ${
+                      editingTx.type === 'saida' ? 'bg-rose-500/30 border border-rose-400/40 text-rose-300 shadow-md' : 'bg-white/10 text-slate-300 border border-white/15'
+                    }`}
+                  >
+                    ↓ Saída (Despesa)
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">Data</label>
+                <input
+                  type="text"
+                  required
+                  value={editingTx.date}
+                  onChange={(e) => setEditingTx({ ...editingTx, date: e.target.value })}
+                  className="w-full text-xs px-3 py-2.5 rounded-xl border border-white/20 bg-white/10 text-white placeholder-slate-400 backdrop-blur-md focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">Descrição</label>
+                <input
+                  type="text"
+                  required
+                  value={editingTx.description}
+                  onChange={(e) => setEditingTx({ ...editingTx, description: e.target.value })}
+                  className="w-full text-xs px-3 py-2.5 rounded-xl border border-white/20 bg-white/10 text-white placeholder-slate-400 backdrop-blur-md focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">Categoria</label>
+                <select
+                  value={editingTx.category}
+                  onChange={(e) => setEditingTx({ ...editingTx, category: e.target.value as any })}
+                  className="w-full text-xs px-3 py-2.5 rounded-xl border border-white/20 bg-slate-900 text-white backdrop-blur-md focus:outline-none focus:border-cyan-400"
+                >
+                  <option value="Pagamento OS">Pagamento OS</option>
+                  <option value="Sinal OS">Sinal OS</option>
+                  <option value="Compra de Linhas">Compra de Linhas</option>
+                  <option value="Manutenção">Manutenção</option>
+                  <option value="Insumos">Insumos</option>
+                  <option value="Outros">Outros</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-300 mb-1">Valor (R$)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editingTx.amount}
+                  onChange={(e) => setEditingTx({ ...editingTx, amount: Number(e.target.value) })}
+                  className="w-full text-xs px-3 py-2.5 rounded-xl border border-white/20 bg-white/10 text-cyan-300 font-bold placeholder-slate-400 backdrop-blur-md focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="edit-urgent"
+                  checked={!!editingTx.isUrgent}
+                  onChange={(e) => setEditingTx({ ...editingTx, isUrgent: e.target.checked })}
+                  className="rounded text-cyan-400 focus:ring-cyan-400 bg-white/10 border-white/20"
+                />
+                <label htmlFor="edit-urgent" className="text-xs font-semibold text-slate-300">Marcar como urgente</label>
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingTx(null)}
+                  className="flex-1 py-2.5 border border-white/20 bg-white/10 hover:bg-white/20 font-semibold text-slate-300 rounded-xl transition backdrop-blur-md"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-gradient-to-r from-cyan-400 to-blue-600 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg shadow-cyan-500/25 border border-cyan-300/40 hover:brightness-110 active:scale-95 transition"
+                >
+                  Salvar Alterações
                 </button>
               </div>
             </form>

@@ -585,6 +585,17 @@ export default function Home() {
   };
 
   // Finance Handlers
+  const recalculateBalances = (txs: Transaction[]): Transaction[] => {
+    const reversed = [...txs].reverse();
+    let runningBalance = 0;
+    const updatedReversed = reversed.map(t => {
+      const change = t.type === 'entrada' ? t.amount : -t.amount;
+      runningBalance += change;
+      return { ...t, balanceAfter: runningBalance };
+    });
+    return updatedReversed.reverse();
+  };
+
   const handleAddTransaction = (newTx: Omit<Transaction, 'id' | 'balanceAfter'>) => {
     const lastBalance = transactions[0]?.balanceAfter || 250;
     const amount = newTx.type === 'entrada' ? newTx.amount : -newTx.amount;
@@ -597,6 +608,20 @@ export default function Home() {
     };
 
     setTransactions([created, ...transactions]);
+  };
+
+  const handleUpdateTransaction = (updatedTx: Transaction) => {
+    setTransactions(prev => {
+      const next = prev.map(t => t.id === updatedTx.id ? updatedTx : t);
+      return recalculateBalances(next);
+    });
+  };
+
+  const handleDeleteTransaction = (id: string) => {
+    setTransactions(prev => {
+      const next = prev.filter(t => t.id !== id);
+      return recalculateBalances(next);
+    });
   };
 
   // Executed Services Handlers
@@ -728,6 +753,8 @@ export default function Home() {
             <FinanceView
               transactions={transactions}
               onAddTransaction={handleAddTransaction}
+              onUpdateTransaction={handleUpdateTransaction}
+              onDeleteTransaction={handleDeleteTransaction}
             />
           )}
 
